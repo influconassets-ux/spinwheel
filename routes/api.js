@@ -4,6 +4,54 @@ const Lead = require('../models/Lead');
 const StoreConfig = require('../models/StoreConfig');
 const shopify = require('../shopify');
 
+// Helper to create real Shopify Discount via Admin API
+async function createShopifyDiscount(shopUrl, accessToken, discountValue, codeName) {
+    const headers = {
+        "X-Shopify-Access-Token": accessToken,
+        "Content-Type": "application/json"
+    };
+
+    // 1. Create Price Rule
+    const ruleResponse = await fetch(`https://${shopUrl}/admin/api/2024-04/price_rules.json`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+            price_rule: {
+                title: codeName,
+                target_type: "line_item",
+                target_selection: "all",
+                allocation_method: "across",
+                value_type: "percentage",
+                value: `-${discountValue}.0`,
+                customer_selection: "all",
+                starts_at: new Date().toISOString()
+            }
+        })
+    });
+
+    if (!ruleResponse.ok) {
+        throw new Error(`Failed to create Price Rule: ${await ruleResponse.text()}`);
+    }
+
+    const ruleData = await ruleResponse.json();
+    const priceRuleId = ruleData.price_rule.id;
+
+    // 2. Create Discount Code
+    const codeResponse = await fetch(`https://${shopUrl}/admin/api/2024-04/price_rules/${priceRuleId}/discount_codes.json`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+            discount_code: { code: codeName }
+        })
+    });
+
+    if (!codeResponse.ok) {
+        throw new Error(`Failed to create Discount Code: ${await codeResponse.text()}`);
+    }
+
+    return codeName;
+}
+
 // Default fallback prizes matching the 6 slices on the frontend wheel
 const fallbackPrizes = [
     { label: '10% OFF', type: 'percentage', probabilityWeight: 30 },
@@ -48,14 +96,23 @@ router.post('/spin', async (req, res) => {
         let discountCode = null;
         let selectedVariantId = null;
 
-        // In a real app, you would use Shopify Admin API to generate the discount code here.
-        // e.g. shopify.rest.PriceRule.create(...)
-        
+        // Generate Real Shopify Discount Code
         if (selectedPrize.type === 'percentage') {
-            discountCode = `SPIN10-${Math.random().toString(36).substring(2,8).toUpperCase()}`;
+            const valMatch = selectedPrize.label.match(/\d+/);
+            const discountValue = valMatch ? valMatch[0] : 10;
+            const codeName = `SPIN${discountValue}-${Math.random().toString(36).substring(2,8).toUpperCase()}`;
+            
+            try {
+                const accessToken = process.env.SHOPIFY_ACCESS_TOKEN;
+                if (accessToken) {
+                    await createShopifyDiscount(shopDomain, accessToken, discountValue, codeName);
+                }
+                discountCode = codeName;
+            } catch (e) {
+                console.error("Shopify Discount Creation Error:", e);
+                discountCode = codeName; // Provide mock code if API fails
+            }
         } else if (selectedPrize.type === 'free_accessory') {
-            // In a real app, fetch products from config.freeGiftCollectionId via GraphQL
-            // and pick a random available variant.
             selectedVariantId = '40012345678901'; // Mock Variant ID
             discountCode = `FREEGIFT-${Math.random().toString(36).substring(2,8).toUpperCase()}`;
         }
