@@ -118,13 +118,16 @@ router.post('/spin', async (req, res) => {
         }
 
         // Save Lead to MongoDB
+        const expiryDate = new Date(Date.now() + 48 * 60 * 60 * 1000); // 48 hours from now
+        
         const newLead = new Lead({
             storeDomain: shopDomain,
             name, email, phone,
             campaign: 'Spin & Win',
             prize: selectedPrize.label,
             discountCode,
-            selectedVariantId
+            selectedVariantId,
+            expiry: expiryDate
         });
         await newLead.save();
 
@@ -250,6 +253,18 @@ router.post('/config', async (req, res) => {
         res.json(config);
     } catch (e) {
         console.error("Config Save Error:", e);
+        res.status(500).json({ error: 'Server Error' });
+    }
+});
+
+// GET Leads Data for Admin Dashboard
+router.get('/leads', async (req, res) => {
+    try {
+        // Fetch all leads and sort by newest first
+        const leads = await Lead.find().sort({ createdAt: -1 });
+        res.json({ leads });
+    } catch (e) {
+        console.error("Leads Fetch Error:", e);
         res.status(500).json({ error: 'Server Error' });
     }
 });
