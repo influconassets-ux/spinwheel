@@ -62,7 +62,7 @@ router.post('/spin', async (req, res) => {
 
         // Save Lead to MongoDB
         const newLead = new Lead({
-            storeDomain,
+            storeDomain: shopDomain,
             name, email, phone,
             campaign: 'Spin & Win',
             prize: selectedPrize.label,
