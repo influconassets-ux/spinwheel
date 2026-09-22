@@ -5,7 +5,7 @@ const StoreConfig = require('../models/StoreConfig');
 const shopify = require('../shopify');
 
 // Helper to create real Shopify Discount via Admin API
-async function createShopifyDiscount(shopUrl, accessToken, codeName, prizeType, discountValue, collectionId) {
+async function createShopifyDiscount(shopUrl, accessToken, codeName, prizeType, discountValue, collectionId, freeGiftPrice) {
     const headers = {
         "X-Shopify-Access-Token": accessToken,
         "Content-Type": "application/json"
@@ -35,12 +35,13 @@ async function createShopifyDiscount(shopUrl, accessToken, codeName, prizeType, 
             priceRule.target_selection = "entitled";
             priceRule.entitled_collection_ids = [parseInt(collectionId, 10)];
             priceRule.allocation_method = "each";
-            // Require user to buy 1 of ANY item to get 1 entitled item free
-            priceRule.prerequisite_to_entitlement_quantity_ratio = {
-                prerequisite_quantity: 1,
-                entitled_quantity: 1
-            };
-            priceRule.allocation_limit = 1;
+            // Require user to have a subtotal greater than the free gift itself
+            if (freeGiftPrice && !isNaN(freeGiftPrice)) {
+                let minSubtotal = parseFloat(freeGiftPrice) + 0.01;
+                priceRule.prerequisite_subtotal_range = {
+                    greater_than_or_equal_to: minSubtotal.toFixed(2)
+                };
+            }
         }
     }
 
@@ -120,6 +121,7 @@ router.post('/spin', async (req, res) => {
         let discountCode = null;
         let selectedVariantId = null;
         let finalPrizeText = selectedPrize.label;
+        let freeGiftPrice = 0;
 
         // Generate Real Shopify Discount Code
         if (selectedPrize.type !== 'none') {
@@ -149,6 +151,7 @@ router.post('/spin', async (req, res) => {
                                 if (randomProduct.variants && randomProduct.variants.length > 0) {
                                     selectedVariantId = randomProduct.variants[0].id;
                                     finalPrizeText = `FREE GIFT: ${randomProduct.title}`;
+                                    freeGiftPrice = randomProduct.variants[0].price;
                                 }
                             }
                         }
@@ -164,7 +167,7 @@ router.post('/spin', async (req, res) => {
             try {
                 const accessToken = (config && config.accessToken) ? config.accessToken : process.env.SHOPIFY_ACCESS_TOKEN;
                 if (accessToken) {
-                    await createShopifyDiscount(shopDomain, accessToken, codeName, selectedPrize.type, discountValue, config?.freeGiftCollectionId);
+                    await createShopifyDiscount(shopDomain, accessToken, codeName, selectedPrize.type, discountValue, config?.freeGiftCollectionId, freeGiftPrice);
                 }
                 discountCode = codeName;
             } catch (e) {
