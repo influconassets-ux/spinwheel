@@ -28,11 +28,12 @@ async function createShopifyDiscount(shopUrl, accessToken, codeName, prizeType, 
         priceRule.target_type = "shipping_line";
         priceRule.value_type = "percentage";
         priceRule.value = "-100.0";
+        priceRule.allocation_method = "each";
     } else if (prizeType === 'free_accessory') {
         priceRule.value = "-100.0";
         if (collectionId) {
             priceRule.target_selection = "entitled";
-            priceRule.entitled_collection_ids = [collectionId];
+            priceRule.entitled_collection_ids = [parseInt(collectionId, 10)];
             priceRule.allocation_method = "each";
         }
     }
@@ -45,7 +46,9 @@ async function createShopifyDiscount(shopUrl, accessToken, codeName, prizeType, 
     });
 
     if (!ruleResponse.ok) {
-        throw new Error(`Failed to create Price Rule: ${await ruleResponse.text()}`);
+        const errText = await ruleResponse.text();
+        console.error("Shopify Price Rule Error Payload:", JSON.stringify({ price_rule: priceRule }));
+        throw new Error(`Failed to create Price Rule: ${errText}`);
     }
 
     const ruleData = await ruleResponse.json();
