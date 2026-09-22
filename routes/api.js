@@ -35,6 +35,12 @@ async function createShopifyDiscount(shopUrl, accessToken, codeName, prizeType, 
             priceRule.target_selection = "entitled";
             priceRule.entitled_collection_ids = [parseInt(collectionId, 10)];
             priceRule.allocation_method = "each";
+            // Require user to buy 1 of ANY item to get 1 entitled item free
+            priceRule.prerequisite_to_entitlement_quantity_ratio = {
+                prerequisite_quantity: 1,
+                entitled_quantity: 1
+            };
+            priceRule.allocation_limit = 1;
         }
     }
 
