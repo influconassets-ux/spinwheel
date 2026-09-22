@@ -35,13 +35,6 @@ async function createShopifyDiscount(shopUrl, accessToken, codeName, prizeType, 
             priceRule.target_selection = "entitled";
             priceRule.entitled_collection_ids = [parseInt(collectionId, 10)];
             priceRule.allocation_method = "each";
-            // Require user to have a subtotal greater than the free gift itself
-            if (freeGiftPrice && !isNaN(freeGiftPrice)) {
-                let minSubtotal = parseFloat(freeGiftPrice) + 0.01;
-                priceRule.prerequisite_subtotal_range = {
-                    greater_than_or_equal_to: minSubtotal.toFixed(2)
-                };
-            }
         }
     }
 
