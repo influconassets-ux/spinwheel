@@ -103,7 +103,7 @@ router.post('/spin', async (req, res) => {
             const codeName = `SPIN${discountValue}-${Math.random().toString(36).substring(2,8).toUpperCase()}`;
             
             try {
-                const accessToken = process.env.SHOPIFY_ACCESS_TOKEN;
+                const accessToken = (config && config.accessToken) ? config.accessToken : process.env.SHOPIFY_ACCESS_TOKEN;
                 if (accessToken) {
                     await createShopifyDiscount(shopDomain, accessToken, discountValue, codeName);
                 }
@@ -146,7 +146,8 @@ router.post('/spin', async (req, res) => {
 router.get('/shopify/collections', async (req, res) => {
     try {
         const shopUrl = process.env.SHOPIFY_SHOP_URL;
-        const accessToken = process.env.SHOPIFY_ACCESS_TOKEN;
+        let config = await StoreConfig.findOne({ storeDomain: shopUrl });
+        const accessToken = (config && config.accessToken) ? config.accessToken : process.env.SHOPIFY_ACCESS_TOKEN;
         
         if (!accessToken) {
             return res.status(400).json({ error: "Missing SHOPIFY_ACCESS_TOKEN in backend .env" });
@@ -182,7 +183,7 @@ router.get('/shopify/collections', async (req, res) => {
         res.json({ collections: allCollections });
     } catch (e) {
         console.error("Shopify Collection Fetch Error:", e);
-        res.status(500).json({ collections: [] });
+        res.status(500).json({ collections: [], error: e.message });
     }
 });
 

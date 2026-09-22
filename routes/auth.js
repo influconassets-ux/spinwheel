@@ -3,9 +3,9 @@ const router = express.Router();
 const shopify = require('../shopify');
 const StoreConfig = require('../models/StoreConfig');
 
-// GET /api/auth/login
+// GET /api/auth
 // Start OAuth flow
-router.get('/login', async (req, res) => {
+router.get('/', async (req, res) => {
     const shop = req.query.shop;
     if (!shop) {
         return res.status(400).send('Missing shop parameter');
