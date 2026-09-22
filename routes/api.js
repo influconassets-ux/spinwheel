@@ -109,6 +109,7 @@ router.post('/spin', async (req, res) => {
 
         let discountCode = null;
         let selectedVariantId = null;
+        let finalPrizeText = selectedPrize.label;
 
         // Generate Real Shopify Discount Code
         if (selectedPrize.type !== 'none') {
@@ -121,6 +122,31 @@ router.post('/spin', async (req, res) => {
                 codeName = `SPIN${discountValue}-${Math.random().toString(36).substring(2,8).toUpperCase()}`;
             } else if (selectedPrize.type === 'free_accessory') {
                 codeName = `GIFT-${Math.random().toString(36).substring(2,8).toUpperCase()}`;
+                
+                // Pick a random product from the collection if configured
+                if (config && config.freeGiftCollectionId) {
+                    try {
+                        const accessToken = (config && config.accessToken) ? config.accessToken : process.env.SHOPIFY_ACCESS_TOKEN;
+                        const prodsRes = await fetch(`https://${shopDomain}/admin/api/2024-04/products.json?collection_id=${config.freeGiftCollectionId}`, {
+                            headers: { "X-Shopify-Access-Token": accessToken }
+                        });
+                        
+                        if (prodsRes.ok) {
+                            const prodsData = await prodsRes.json();
+                            const products = prodsData.products || [];
+                            if (products.length > 0) {
+                                const randomProduct = products[Math.floor(Math.random() * products.length)];
+                                if (randomProduct.variants && randomProduct.variants.length > 0) {
+                                    selectedVariantId = randomProduct.variants[0].id;
+                                    finalPrizeText = `FREE GIFT: ${randomProduct.title}`;
+                                }
+                            }
+                        }
+                    } catch (e) {
+                        console.error("Failed to fetch random free gift:", e);
+                    }
+                }
+                
             } else if (selectedPrize.type === 'free_shipping') {
                 codeName = `SHIP-${Math.random().toString(36).substring(2,8).toUpperCase()}`;
             }
@@ -144,7 +170,7 @@ router.post('/spin', async (req, res) => {
             storeDomain: shopDomain,
             name, email, phone,
             campaign: 'Spin & Win',
-            prize: selectedPrize.label,
+            prize: finalPrizeText,
             discountCode,
             selectedVariantId,
             expiry: expiryDate
@@ -152,7 +178,7 @@ router.post('/spin', async (req, res) => {
         await newLead.save();
 
         res.json({
-            prize: selectedPrize.label,
+            prize: finalPrizeText,
             prizeIndex: selectedIndex,
             discountCode,
             selectedVariantId
