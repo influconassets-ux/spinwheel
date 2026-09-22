@@ -33,6 +33,12 @@ async function createShopifyDiscount(shopUrl, accessToken, codeName, prizeType, 
         if (collectionId) {
             priceRule.target_selection = "entitled";
             priceRule.entitled_collection_ids = [collectionId];
+            priceRule.allocation_method = "each";
+            priceRule.prerequisite_to_entitlement_quantity_ratio = {
+                prerequisite_quantity: 1,
+                entitled_quantity: 1
+            };
+            priceRule.allocation_limit = 1;
         }
     }
 
