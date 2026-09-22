@@ -133,7 +133,7 @@ router.post('/spin', async (req, res) => {
                         
                         if (prodsRes.ok) {
                             const prodsData = await prodsRes.json();
-                            const products = prodsData.products || [];
+                            const products = (prodsData.products || []).filter(p => p.status === 'active');
                             if (products.length > 0) {
                                 const randomProduct = products[Math.floor(Math.random() * products.length)];
                                 if (randomProduct.variants && randomProduct.variants.length > 0) {
