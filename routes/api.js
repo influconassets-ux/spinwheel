@@ -5,28 +5,42 @@ const StoreConfig = require('../models/StoreConfig');
 const shopify = require('../shopify');
 
 // Helper to create real Shopify Discount via Admin API
-async function createShopifyDiscount(shopUrl, accessToken, discountValue, codeName) {
+async function createShopifyDiscount(shopUrl, accessToken, codeName, prizeType, discountValue, collectionId) {
     const headers = {
         "X-Shopify-Access-Token": accessToken,
         "Content-Type": "application/json"
     };
 
+    let priceRule = {
+        title: codeName,
+        target_type: "line_item",
+        target_selection: "all",
+        allocation_method: "across",
+        value_type: "percentage",
+        value: "-10.0",
+        customer_selection: "all",
+        starts_at: new Date().toISOString()
+    };
+
+    if (prizeType === 'percentage') {
+        priceRule.value = `-${discountValue}.0`;
+    } else if (prizeType === 'free_shipping') {
+        priceRule.target_type = "shipping_line";
+        priceRule.value_type = "percentage";
+        priceRule.value = "-100.0";
+    } else if (prizeType === 'free_accessory') {
+        priceRule.value = "-100.0";
+        if (collectionId) {
+            priceRule.target_selection = "entitled";
+            priceRule.entitled_collection_ids = [collectionId];
+        }
+    }
+
     // 1. Create Price Rule
     const ruleResponse = await fetch(`https://${shopUrl}/admin/api/2024-04/price_rules.json`, {
         method: 'POST',
         headers,
-        body: JSON.stringify({
-            price_rule: {
-                title: codeName,
-                target_type: "line_item",
-                target_selection: "all",
-                allocation_method: "across",
-                value_type: "percentage",
-                value: `-${discountValue}.0`,
-                customer_selection: "all",
-                starts_at: new Date().toISOString()
-            }
-        })
+        body: JSON.stringify({ price_rule: priceRule })
     });
 
     if (!ruleResponse.ok) {
@@ -97,24 +111,30 @@ router.post('/spin', async (req, res) => {
         let selectedVariantId = null;
 
         // Generate Real Shopify Discount Code
-        if (selectedPrize.type === 'percentage') {
-            const valMatch = selectedPrize.label.match(/\d+/);
-            const discountValue = valMatch ? valMatch[0] : 10;
-            const codeName = `SPIN${discountValue}-${Math.random().toString(36).substring(2,8).toUpperCase()}`;
-            
+        if (selectedPrize.type !== 'none') {
+            let codeName = '';
+            let discountValue = 0;
+
+            if (selectedPrize.type === 'percentage') {
+                const valMatch = selectedPrize.label.match(/\d+/);
+                discountValue = valMatch ? valMatch[0] : 10;
+                codeName = `SPIN${discountValue}-${Math.random().toString(36).substring(2,8).toUpperCase()}`;
+            } else if (selectedPrize.type === 'free_accessory') {
+                codeName = `GIFT-${Math.random().toString(36).substring(2,8).toUpperCase()}`;
+            } else if (selectedPrize.type === 'free_shipping') {
+                codeName = `SHIP-${Math.random().toString(36).substring(2,8).toUpperCase()}`;
+            }
+
             try {
                 const accessToken = (config && config.accessToken) ? config.accessToken : process.env.SHOPIFY_ACCESS_TOKEN;
                 if (accessToken) {
-                    await createShopifyDiscount(shopDomain, accessToken, discountValue, codeName);
+                    await createShopifyDiscount(shopDomain, accessToken, codeName, selectedPrize.type, discountValue, config?.freeGiftCollectionId);
                 }
                 discountCode = codeName;
             } catch (e) {
                 console.error("Shopify Discount Creation Error:", e);
                 discountCode = codeName; // Provide mock code if API fails
             }
-        } else if (selectedPrize.type === 'free_accessory') {
-            selectedVariantId = '40012345678901'; // Mock Variant ID
-            discountCode = `FREEGIFT-${Math.random().toString(36).substring(2,8).toUpperCase()}`;
         }
 
         // Save Lead to MongoDB
